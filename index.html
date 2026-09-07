@@ -964,6 +964,71 @@ textarea.input{resize:vertical;min-height:100px;line-height:1.6}
   background:linear-gradient(135deg,var(--mesh-1),var(--mesh-2));
   box-shadow:0 0 12px rgba(168,216,255,0.3);
 }
+
+/* ====== API Settings Panel ====== */
+.api-panel{
+  position:fixed;top:60px;right:16px;width:340px;z-index:200;
+  background:var(--glass-bg-thick);
+  backdrop-filter:blur(var(--glass-blur-md)) saturate(1.3);-webkit-backdrop-filter:blur(var(--glass-blur-md)) saturate(1.3);
+  border:1px solid var(--glass-border);border-top-color:var(--glass-border-top);
+  border-radius:var(--radius-md);
+  box-shadow:var(--glass-edge-highlight),var(--shadow-elevated);
+  padding:20px;display:none;position:fixed;
+}
+.api-panel.show{display:block;animation:panelIn .25s ease}
+@keyframes panelIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+.api-panel-title{font-size:14px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:6px}
+.api-panel label{font-size:12px;font-weight:600;color:var(--ink-3);display:block;margin-bottom:4px;margin-top:12px}
+.api-panel select,.api-panel input{
+  width:100%;padding:10px 12px;font-size:13px;font-family:var(--font);
+  background:var(--input-bg);border:1px solid var(--glass-border);
+  border-radius:var(--radius-sm);color:var(--ink);outline:none;
+  transition:border-color .2s;
+}
+.api-panel select:focus,.api-panel input:focus{border-color:var(--accent)}
+.api-panel .hint{font-size:11px;color:var(--ink-4);margin-top:4px;line-height:1.5}
+.api-panel .api-status{
+  display:flex;align-items:center;gap:6px;font-size:12px;
+  padding:8px 12px;border-radius:8px;margin-top:12px;
+}
+.api-status.ok{background:rgba(48,209,88,0.1);color:var(--green)}
+.api-status.err{background:rgba(255,69,58,0.1);color:var(--red)}
+.api-status.idle{background:var(--input-bg);color:var(--ink-3)}
+.api-status .dot{width:8px;height:8px;border-radius:50%}
+.api-status.ok .dot{background:var(--green)}
+.api-status.err .dot{background:var(--red)}
+.api-status.idle .dot{background:var(--ink-4)}
+
+/* ====== AI Loading Indicator ====== */
+.ai-loading{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:40px 16px;text-align:center;
+}
+.ai-loading .spin{
+  width:32px;height:32px;border:3px solid var(--glass-border);
+  border-top-color:var(--accent);border-radius:50%;
+  animation:spin 0.8s linear infinite;margin-bottom:12px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ai-loading .lt{font-size:14px;color:var(--ink-3);font-weight:500}
+.ai-loading .ld{font-size:12px;color:var(--ink-4);margin-top:4px}
+
+/* AI result card */
+.ai-result{
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  border-radius:var(--radius-sm);padding:14px;margin-bottom:12px;
+  position:relative;
+}
+.ai-result .ai-tag{
+  position:absolute;top:8px;right:8px;
+  font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;
+}
+.ai-result .ai-edit-btn{
+  font-size:11px;color:var(--accent);cursor:pointer;
+  padding:4px 8px;border-radius:6px;background:var(--accent-light);
+  border:none;font-weight:600;margin-top:8px;
+}
 </style>
 </head>
 <body>
@@ -989,6 +1054,7 @@ textarea.input{resize:vertical;min-height:100px;line-height:1.6}
       </div>
     </div>
     <div class="nav-right">
+      <button class="nav-btn" onclick="toggleApiPanel()" title="AI API 设置" id="apiBtn">⚡</button>
       <button class="nav-btn" onclick="toggleThemePanel()" title="切换主题" id="themeBtn">🎨</button>
       <button class="nav-btn" onclick="goHistory()" title="历史记录">🕐</button>
     </div>
@@ -1038,6 +1104,39 @@ textarea.input{resize:vertical;min-height:100px;line-height:1.6}
 
 <!-- Floating Action Bar -->
 <div class="float-bar" id="floatBar"></div>
+
+<!-- API Settings Panel -->
+<div class="api-panel" id="apiPanel">
+  <div class="api-panel-title">⚡ AI API 设置</div>
+  <label>API 提供商</label>
+  <select id="apiProvider" onchange="onApiProviderChange()">
+    <option value="doubao">豆包（字节跳动）</option>
+    <option value="openai">OpenAI / 兼容接口</option>
+    <option value="deepseek">Deepseek</option>
+    <option value="zhipu">智谱 GLM</option>
+    <option value="custom">自定义端点</option>
+  </select>
+  <label>API Key</label>
+  <input type="password" id="apiKeyInput" placeholder="sk-xxxxxxxxxxxx" autocomplete="off">
+  <div class="hint" id="apiKeyHint">在 AI 平台获取 API Key 后填入此处，Key 仅存储在本地浏览器。</div>
+  <label>模型名称</label>
+  <input type="text" id="apiModelInput" placeholder="如 doubao-pro-32k" autocomplete="off">
+  <div class="hint" id="apiModelHint">推荐使用 doubao-pro-32k 或 gpt-4o-mini</div>
+  <label>API 端点（可选）</label>
+  <input type="text" id="apiEndpointInput" placeholder="https://ark.cn-beijing.volces.com/api/v3/chat/completions" autocomplete="off">
+  <div class="hint">留空则使用默认端点。自定义接口需填写完整 URL。</div>
+  <div class="api-status idle" id="apiStatus">
+    <div class="dot"></div>
+    <span id="apiStatusText">未连接 — 填入 Key 后可测试</span>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <button class="btn btn-ghost" style="flex:1;font-size:13px;padding:10px" onclick="testApiConnection()">测试连接</button>
+    <button class="btn btn-primary" style="flex:1;font-size:13px;padding:10px" onclick="saveApiConfig()">保存配置</button>
+  </div>
+  <div style="font-size:11px;color:var(--ink-4);margin-top:12px;line-height:1.5;padding-top:12px;border-top:1px solid var(--rule)">
+    所有内容生成功能依赖 AI 模型。未配置 API 时，工作台将使用内置模板作为降级方案，但产出质量有限。
+  </div>
+</div>
 
 <!-- ===== PAGE: IP SETUP ===== -->
 <div class="page active" id="page-ipsetup">
@@ -1166,6 +1265,186 @@ textarea.input{resize:vertical;min-height:100px;line-height:1.6}
 <div id="toast"></div>
 
 <script>
+// ================================================================
+//  M0: AI Engine — callAI() 通用调用函数
+// ================================================================
+
+const API_DEFAULTS = {
+  doubao:  { endpoint: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions', model: 'doubao-pro-32k' },
+  openai:  { endpoint: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o-mini' },
+  deepseek:{ endpoint: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-chat' },
+  zhipu:   { endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', model: 'glm-4-flash' },
+  custom:  { endpoint: '', model: '' }
+};
+
+function getApiConfig() {
+  return {
+    provider: localStorage.getItem('xh_api_provider') || '',
+    apiKey: localStorage.getItem('xh_api_key') || '',
+    model: localStorage.getItem('xh_api_model') || '',
+    endpoint: localStorage.getItem('xh_api_endpoint') || ''
+  };
+}
+
+function hasApiKey() {
+  var c = getApiConfig();
+  return !!(c.apiKey && c.apiKey.length > 5);
+}
+
+async function callAI(userPrompt, systemPrompt, options) {
+  options = options || {};
+  var config = getApiConfig();
+  if (!config.apiKey) {
+    return null;
+  }
+  var defaults = API_DEFAULTS[config.provider] || API_DEFAULTS.doubao;
+  var endpoint = config.endpoint || defaults.endpoint;
+  var model = config.model || defaults.model;
+
+  var body = {
+    model: model,
+    messages: [
+      { role: 'system', content: systemPrompt || '你是一个短视频创作专家。' },
+      { role: 'user', content: userPrompt }
+    ],
+    temperature: options.temperature || 0.85,
+    max_tokens: options.maxTokens || 4096
+  };
+  if (options.json) {
+    body.response_format = { type: 'json_object' };
+  }
+
+  try {
+    var resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + config.apiKey
+      },
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok) {
+      var errText = await resp.text();
+      console.error('AI API error:', resp.status, errText);
+      toast('AI 调用失败 (' + resp.status + '): ' + errText.substring(0, 100));
+      return null;
+    }
+    var data = await resp.json();
+    var content = data.choices[0].message.content;
+    return content;
+  } catch (e) {
+    console.error('AI call error:', e);
+    toast('AI 调用异常: ' + e.message);
+    return null;
+  }
+}
+
+function showAILoading(containerId, msg) {
+  var el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = '<div class="ai-loading"><div class="spin"></div><div class="lt">' + (msg || 'AI 正在生成…') + '</div><div class="ld">通常需要 5-15 秒</div></div>';
+}
+
+function renderAIResult(containerId, content, tag) {
+  var el = document.getElementById(containerId);
+  if (!el) return;
+  var safe = content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  el.innerHTML = '<div class="ai-result"><span class="ai-tag">' + (tag || 'AI') + '</span><div>' + safe + '</div></div>';
+}
+
+function toggleApiPanel() {
+  var p = document.getElementById('apiPanel');
+  var tp = document.getElementById('themePanel');
+  if (tp) tp.classList.remove('show');
+  p.classList.toggle('show');
+  if (p.classList.contains('show')) loadApiConfig();
+}
+
+function loadApiConfig() {
+  var c = getApiConfig();
+  document.getElementById('apiProvider').value = c.provider || 'doubao';
+  document.getElementById('apiKeyInput').value = c.apiKey || '';
+  document.getElementById('apiModelInput').value = c.model || '';
+  document.getElementById('apiEndpointInput').value = c.endpoint || '';
+  onApiProviderChange();
+  updateApiStatus();
+}
+
+function onApiProviderChange() {
+  var provider = document.getElementById('apiProvider').value;
+  var defaults = API_DEFAULTS[provider] || API_DEFAULTS.doubao;
+  var modelInput = document.getElementById('apiModelInput');
+  var endpointInput = document.getElementById('apiEndpointInput');
+  if (!modelInput.value || Object.values(API_DEFAULTS).some(function(d) { return d.model === modelInput.value; })) {
+    modelInput.value = defaults.model;
+  }
+  if (!endpointInput.value || Object.values(API_DEFAULTS).some(function(d) { return d.endpoint === endpointInput.value; })) {
+    endpointInput.value = defaults.endpoint;
+  }
+  var hints = {
+    doubao: '在火山引擎控制台获取 API Key，模型推荐 doubao-pro-32k',
+    openai: '在 OpenAI 平台获取 API Key，模型推荐 gpt-4o-mini',
+    deepseek: '在 Deepseek 平台获取 API Key，模型推荐 deepseek-chat',
+    zhipu: '在智谱开放平台获取 API Key，模型推荐 glm-4-flash',
+    custom: '填写任意 OpenAI 兼容接口的端点 URL、Key 和模型名'
+  };
+  document.getElementById('apiKeyHint').textContent = hints[provider] || '';
+}
+
+function saveApiConfig() {
+  localStorage.setItem('xh_api_provider', document.getElementById('apiProvider').value);
+  localStorage.setItem('xh_api_key', document.getElementById('apiKeyInput').value);
+  localStorage.setItem('xh_api_model', document.getElementById('apiModelInput').value);
+  localStorage.setItem('xh_api_endpoint', document.getElementById('apiEndpointInput').value);
+  updateApiStatus();
+  toast('API 配置已保存');
+  var btn = document.getElementById('apiBtn');
+  if (btn && hasApiKey()) btn.textContent = '⚡';
+}
+
+function updateApiStatus() {
+  var status = document.getElementById('apiStatus');
+  var text = document.getElementById('apiStatusText');
+  if (hasApiKey()) {
+    var c = getApiConfig();
+    status.className = 'api-status ok';
+    text.textContent = '已配置 — ' + (c.model || '默认模型');
+  } else {
+    status.className = 'api-status idle';
+    text.textContent = '未连接 — 填入 Key 后可测试';
+  }
+}
+
+async function testApiConnection() {
+  if (!hasApiKey()) {
+    toast('请先填入 API Key');
+    return;
+  }
+  saveApiConfig();
+  var status = document.getElementById('apiStatus');
+  var text = document.getElementById('apiStatusText');
+  status.className = 'api-status idle';
+  text.textContent = '正在测试连接…';
+  var result = await callAI('请回复"连接成功"四个字。', '你是一个测试助手。', { maxTokens: 50 });
+  if (result && result.length > 0) {
+    status.className = 'api-status ok';
+    text.textContent = '连接成功 — AI 模型已就绪';
+    toast('AI 连接成功');
+  } else {
+    status.className = 'api-status err';
+    text.textContent = '连接失败 — 请检查 Key 和端点';
+  }
+}
+
+// Close API panel on outside click
+document.addEventListener('click', function(e) {
+  var panel = document.getElementById('apiPanel');
+  var btn = document.getElementById('apiBtn');
+  if (panel && panel.classList.contains('show') && !panel.contains(e.target) && e.target !== btn) {
+    panel.classList.remove('show');
+  }
+});
+
 // ================================================================
 //  M1: IP Setup Engine
 // ================================================================
@@ -1314,39 +1593,148 @@ function generateIPProfile(){
     return;
   }
 
-  // Generate 6 outputs based on SKILL.md methodology
+  if(hasApiKey()){
+    generateIPProfileAI(industry,bizType,product,price,audience,advantage,ipLevel);
+  }else{
+    generateIPProfileFallback(industry,bizType,product,price,audience,advantage,ipLevel);
+  }
+}
+
+async function generateIPProfileAI(industry,bizType,product,price,audience,advantage,ipLevel){
+  showAILoading('ipsetup-container','AI 正在生成 IP 人设方案…');
   const bizModel=IP_BIZ_MODEL_MAP[bizType]||IP_BIZ_MODEL_MAP['卖货'];
   const levelInfo=IP_LEVEL_MAP[ipLevel]||IP_LEVEL_MAP['执行者'];
-  const monetization=MONETIZATION_PATHS[bizType]||MONETIZATION_PATHS['卖货'];
 
-  // Generate IP persona
-  const persona=generateIPPersona(industry,product,audience,advantage,bizType);
+  const sysPrompt='你是短视频IP策划专家，精通薛辉方法论（八大元素×四大脚本模型）。根据用户信息生成完整的IP人设定位方案。输出用中文，结构清晰，每部分用【】标注标题。';
+  const userPrompt=`请为以下信息生成完整的IP人设方案：
 
-  // Generate content direction
-  const direction=generateContentDirection(industry,bizType,product,audience);
+行业：${industry}
+商业类型：${bizType}
+产品/服务：${product}
+价格区间：${price||'未提供'}
+目标客户：${audience}
+核心优势：${advantage||'未提供'}
+IP层级：${ipLevel||'执行者'}
+
+请按以下结构输出（每部分都要具体、可执行，不要泛泛而谈）：
+
+【IP人设定位】
+用3-4句话描述这个IP的人设：是谁、做什么、凭什么吸引目标客户、差异化标签是什么。要具体到这个行业和产品，不要套话。
+
+【内容方向】
+给出3-5个具体的内容方向，每个方向用一句话描述拍什么内容、怎么拍。要针对${product}和${audience}的实际情况。
+
+【推荐脚本模型】
+从以下四个模型中推荐1-2个最适合的，并说明推荐理由：
+- 痛点共鸣：聚焦用户痛点，情绪共鸣引发分享
+- 反差冲突：制造预期与现实的落差
+- 数据驱动：用数据说话，理性说服
+- 悬念递进：层层设疑，引导看完
+
+【推荐爆款元素】
+从以下八大元素中推荐2-3个最适合的，并说明理由：
+反差、成本、人群、名人、奇葩、女人、最差、怀旧
+
+【变现路径建议】
+给出2-3条具体的变现路径，结合${bizType}的特点。
+
+【60条内容规划建议】
+给出前5条内容的选题方向（不需要完整标题，给方向即可）。`;
+
+  const result=await callAI(userPrompt,sysPrompt,{maxTokens:2048});
+  if(!result){
+    toast('AI 生成失败，使用模板降级');
+    generateIPProfileFallback(industry,bizType,product,price,audience,advantage,ipLevel);
+    return;
+  }
 
   const profile={
     industry,bizType,product,price,audience,advantage,ipLevel,
-    persona,
-    direction,
+    persona:result,
+    direction:'',
+    recommendedModels:bizModel.models,
+    recommendedElements:bizModel.elements,
+    modelReason:bizModel.reason,
+    ipLevelInfo:levelInfo,
+    monetizationPath:'',
+    isAIGenerated:true
+  };
+  window._ipProfile=profile;
+  fillTopicStep1FromIP(profile);
+  renderIPSetupAI(profile);
+  toast('AI 已生成 IP 方案！');
+}
+
+function renderIPSetupAI(p){
+  const c=document.getElementById('ipsetup-container');
+  if(!c)return;
+  const safeAI=p.persona.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  c.innerHTML=`
+  <div class="sc-header">
+    <h2 class="s-title">IP 设定</h2>
+    <p class="s-sub">填写信息，AI 生成你的 IP 人设方案</p>
+  </div>
+  ${renderIPForm(p)}
+  <div style="margin-top:16px">
+    <button class="btn btn-primary" style="width:100%;font-size:15px;padding:14px" onclick="generateIPProfile()">⚡ AI 生成 IP 方案</button>
+  </div>
+  <div style="margin-top:16px">
+    <div class="card" style="margin-bottom:12px;position:relative">
+      <span style="position:absolute;top:8px;right:8px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;background:linear-gradient(135deg,#0A84FF,#5856D6);color:#fff">AI 生成</span>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <span style="font-size:16px">👤</span>
+        <span style="font-size:14px;font-weight:700">IP 人设方案</span>
+      </div>
+      <div style="font-size:13px;color:var(--ink);line-height:1.8">${safeAI}</div>
+    </div>
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <span style="font-size:16px">🎯</span>
+        <span style="font-size:14px;font-weight:700">推荐模型 & 元素</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+        ${p.recommendedModels.map(m=>`<span style="background:rgba(10,132,255,0.15);color:#0A84FF;font-size:11px;padding:3px 10px;border-radius:6px;font-weight:600">${m}</span>`).join('')}
+        ${p.recommendedElements.map(e=>`<span style="background:rgba(48,209,88,0.15);color:#30D158;font-size:11px;padding:3px 10px;border-radius:6px;font-weight:600">${e}</span>`).join('')}
+      </div>
+      <div style="font-size:12px;color:var(--ink-2);line-height:1.6">${p.modelReason}</div>
+    </div>
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        <span style="font-size:16px">📊</span>
+        <span style="font-size:14px;font-weight:700">IP层级 · ${p.ipLevel||'执行者'}</span>
+      </div>
+      <div style="font-size:13px;color:var(--ink);margin-bottom:4px">${p.ipLevelInfo.desc}</div>
+      <div style="font-size:12px;color:var(--ink-2)">${p.ipLevelInfo.suggestion}</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" style="flex:1;font-size:13px" onclick="goPage('topic')">→ 进入选题</button>
+      <button class="btn btn-ghost" style="flex:1;font-size:13px" onclick="saveHistory()">保存到历史</button>
+    </div>
+  </div>`;
+}
+
+function generateIPProfileFallback(industry,bizType,product,price,audience,advantage,ipLevel){
+  const bizModel=IP_BIZ_MODEL_MAP[bizType]||IP_BIZ_MODEL_MAP['卖货'];
+  const levelInfo=IP_LEVEL_MAP[ipLevel]||IP_LEVEL_MAP['执行者'];
+  const monetization=MONETIZATION_PATHS[bizType]||MONETIZATION_PATHS['卖货'];
+  const persona=generateIPPersona(industry,product,audience,advantage,bizType);
+  const direction=generateContentDirection(industry,bizType,product,audience);
+  const profile={
+    industry,bizType,product,price,audience,advantage,ipLevel,
+    persona,direction,
     recommendedModels:bizModel.models,
     recommendedElements:bizModel.elements,
     modelReason:bizModel.reason,
     ipLevelInfo:levelInfo,
     monetizationPath:monetization[0]
   };
-
   window._ipProfile=profile;
-
-  // Auto-fill topic step 1 fields
   fillTopicStep1FromIP(profile);
-
-  // Re-render
   renderIPSetup();
-  toast('IP方案已生成！');
+  toast('IP方案已生成（模板模式，配置 API Key 后可使用 AI 生成）');
 }
 
-// Generate IP Persona
+// Generate IP Persona (fallback when no API key)
 function generateIPPersona(industry,product,audience,advantage,bizType){
   let persona='';
   if(advantage){
@@ -1358,7 +1746,7 @@ function generateIPPersona(industry,product,audience,advantage,bizType){
   return persona;
 }
 
-// Generate content direction
+// Generate content direction (fallback when no API key)
 function generateContentDirection(industry,bizType,product,audience){
   const directions={
     '卖货':`围绕${product}的展示和使用过程，拍出产品真实效果，让${audience}看到钱花在哪`,
@@ -2013,17 +2401,102 @@ function goStep3(){
 //  Topic Generation Engine
 // ================================================================
 function renderTopicResults(){
+  if(hasApiKey()){
+    renderTopicResultsAI();
+  }else{
+    renderTopicResultsFallback();
+  }
+}
+
+async function renderTopicResultsAI(){
+  const view=document.getElementById('topic-result-view');
+  const d=step1Data;
+  const ms=step2Selected.models;
+  const es=step2Selected.elements;
+  showAILoading('topic-result-view','AI 正在生成爆款选题…');
+
+  const sysPrompt='你是短视频选题策划专家，精通薛辉方法论（八大元素×四大脚本模型）。你擅长生成有创意、有冲突感、有传播力的爆款选题。';
+  const batch=window._topicBatch||0;
+  const userPrompt=`请根据以下信息生成 8 个爆款选题：
+
+行业：${d.industry||'未指定'}
+产品/服务：${d.product||'未指定'}
+目标客户：${d.audience||'未指定'}
+选定脚本模型：${ms.join('、')}
+选定爆款元素：${es.join('、')}
+${batch>0?'第'+(batch+1)+'批，请生成全新的选题，不要和之前的重复。':'第一批选题。'}
+
+每个选题必须包含以下信息，用 JSON 数组返回：
+[
+  {
+    "t": "选题标题（8-25字，要有悬念或冲突感，不要太平淡）",
+    "l": "选题理由（为什么这个选题能爆，一句话说明传播逻辑）",
+    "e": ["元素1","元素2"],
+    "s": "脚本模型（从选定的模型中选一个）",
+    "score_e": 8,
+    "score_v": 7
+  }
+]
+
+要求：
+1. 选题要具体到${d.product||'产品'}和${d.audience||'受众'}，不要泛泛而谈
+2. 标题要有情绪触发词（惊/坑/没想到/竟然等）
+3. 每个选题的元素从选定的元素中选
+4. 选题之间角度要不同（避坑/对比/悬念/教学/故事等）
+5. 只返回 JSON 数组，不要其他文字`;
+
+  const result=await callAI(userPrompt,sysPrompt,{json:true,maxTokens:3000});
+  if(!result){
+    toast('AI 生成失败，使用模板降级');
+    renderTopicResultsFallback();
+    return;
+  }
+
+  let topics;
+  try{
+    // Try parsing as JSON
+    let clean=result.trim();
+    if(clean.startsWith('```'))clean=clean.replace(/```json?/g,'').replace(/```/g,'').trim();
+    topics=JSON.parse(clean);
+  }catch(e){
+    console.error('Parse error:',e,result);
+    toast('AI 返回格式异常，使用模板降级');
+    renderTopicResultsFallback();
+    return;
+  }
+
+  topics=topics.map(tp=>{
+    tp.hook=generateHook(tp,d);
+    tp.iron=checkIronLaw(tp,d);
+    return tp;
+  });
+
+  curTopics=topics;
+  window._curStep1Data=d;
+  window._curStep2Data={...step2Selected};
+  addHistory('topic',{...d,models:ms,elements:es,topics:topics});
+
+  let h='';
+  h+=`<div class="step-indicator">
+    <div class="step-dot done"><div class="step-circle">✓</div><div class="step-label">定位</div></div>
+    <div class="step-line active"></div>
+    <div class="step-dot done"><div class="step-circle">✓</div><div class="step-label">组合</div></div>
+    <div class="step-line active"></div>`;
+
+  h+=`<div class="step-dot done"><div class="step-circle">✓</div><div class="step-label">选题</div></div>
+  </div>`;
+  h+=renderTopicCards(topics);
+  view.innerHTML=h;
+}
+
+function renderTopicResultsFallback(){
   const view=document.getElementById('topic-result-view');
   const d=step1Data;
   const ms=step2Selected.models;
   const es=step2Selected.elements;
   const db=IND_DB[d.industry];
-
-  // Generate topics dynamically: combine industry DB topics + template-generated topics
   let topics=[];
   const batchSize=window._topicBatch||0;
-
-  // 1. Try industry DB topics that match model+elements
   if(db){
     const matched=db.topics.filter(tp=>{
       const modelMatch=ms.includes(tp.s);
@@ -2032,13 +2505,9 @@ function renderTopicResults(){
     });
     topics.push(...matched);
   }
-
-  // 2. Generate template-based topics using selected elements + models
   const product=d.product||'产品';
   const aud=d.audience||'目标用户';
   const ind=d.industry||'行业';
-
-  // Element-specific topic templates
   const ELEM_TPL={
     '反差':[
       {t:`把${product}做完后，开出去被当成贵了10倍的`,e:['反差'],l:'改造前后视觉冲击，成本极低+反差极大'},
@@ -2081,23 +2550,18 @@ function renderTopicResults(){
       {t:`从做了这么多年${ind}，最感慨的是这件事`,e:['怀旧'],l:'岁月沉淀+感悟，制造信任和共鸣'}
     ]
   };
-
-  // Generate topics from element templates, filtered by selected models
   const usedTitles=new Set(topics.map(t=>t.t));
   es.forEach(el=>{
     const tpls=ELEM_TPL[el]||[];
     tpls.forEach(t=>{
       if(usedTitles.has(t.t))return;
-      // Assign a model that's compatible with this element
       const compat=ELEM_MODEL_COMPAT[el]||[];
       const model=ms.find(m=>compat.includes(m))||ms[0]||'晒过程';
       topics.push({...t,e:[...new Set([el,...t.e])].slice(0,3),s:model});
       usedTitles.add(t.t);
     });
   });
-
-  // 3. If still not enough, use GEN_TPL templates
-  if(topics.length<6){
+  if(topics.length<6&&typeof GEN_TPL!=='undefined'){
     GEN_TPL.forEach(t=>{
       if(usedTitles.has(t.t))return;
       const filled=t.t.replace('{i}',ind).replace('{p}',product).replace('{a}',aud);
@@ -2106,31 +2570,22 @@ function renderTopicResults(){
       usedTitles.add(t.t);
     });
   }
-
-  // 4. If still not enough, duplicate with variations
   if(topics.length<6){
     const base=topics[0]||{t:`关于${product}的选题`,e:es,s:ms[0]||'晒过程',l:'基础选题'};
     for(let i=topics.length;i<6;i++){
       topics.push({...base,t:base.t+`（角度${i+1}）`});
     }
   }
-
-  // Shuffle based on batch number for "换一批"
   if(batchSize>0){
-    // Rotate topics array
     const shift=batchSize*3;
     topics=[...topics.slice(shift),...topics.slice(0,shift)];
   }
-
-  // Limit to 10
   topics=topics.slice(0,10);
-
   topics=topics.map(tp=>{
     tp.hook=generateHook(tp,d);
     tp.iron=checkIronLaw(tp,d);
     return tp;
   });
-
   curTopics=topics;
   window._curStep1Data=d;
   window._curStep2Data={...step2Selected};
@@ -2141,8 +2596,44 @@ function renderTopicResults(){
     <div class="step-dot done"><div class="step-circle">✓</div><div class="step-label">定位</div></div>
     <div class="step-line active"></div>
     <div class="step-dot done"><div class="step-circle">✓</div><div class="step-label">组合</div></div>
-    <div class="step-line active"></div>
-    <div class="step-dot active"><div class="step-circle">3</div><div class="step-label">选题</div></div>
+    <div class="step-line active"></div>`;
+
+  h+=`<div class="step-dot done"><div class="step-circle">✓</div><div class="step-label">选题</div></div>
+  </div>`;
+  h+=renderTopicCards(topics);
+  view.innerHTML=h;
+}
+
+function renderTopicCards(topics){
+  let h='';
+  h+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div style="font-size:14px;font-weight:700;color:var(--ink)">已生成 ${topics.length} 个选题${hasApiKey()?' <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;background:linear-gradient(135deg,#0A84FF,#5856D6);color:#fff">AI</span>':''}</div>
+    <button class="btn btn-ghost" style="font-size:12px;padding:6px 14px" onclick="generateNewBatch()">↻ 换一批</button>
+  </div>`;
+  topics.forEach((tp,i)=>{
+    h+=`<div class="topic-card" data-idx="${i}" onclick="pickTopic(${i})" style="cursor:pointer;margin-bottom:8px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:600;color:var(--ink);line-height:1.5">${tp.t}</div>
+          <div style="font-size:12px;color:var(--ink-3);margin-top:4px;line-height:1.5">${tp.l||''}</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">
+            ${(tp.e||[]).map(e=>`<span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(48,209,88,0.15);color:#30D158;font-weight:600">${e}</span>`).join('')}
+            ${tp.s?`<span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(10,132,255,0.15);color:#0A84FF;font-weight:600">${tp.s}</span>`:''}
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          ${tp.score_e?`<div style="font-size:11px;color:var(--ink-3)">情绪 ${tp.score_e}</div>`:''}
+          ${tp.score_v?`<div style="font-size:11px;color:var(--ink-3)">爆点 ${tp.score_v}</div>`:''}
+        </div>
+      </div>
+    </div>`;
+  });
+  return h;
+}
+// (legacy render continues below)
+function renderTopicResultsLegacyTail(){
+  let h='';
+  h+=`<div class="step-dot active"><div class="step-circle">3</div><div class="step-label">选题</div></div>
   </div>`;
 
   h+=`<button class="back-btn" onclick="backToStep2()">‹ 返回组合</button>`;
@@ -2263,9 +2754,9 @@ function confirmCustomTopic(){
 function generateNewBatch(){
   window._topicBatch=(window._topicBatch||0)+1;
   const view=document.getElementById('topic-result-view');
-  view.innerHTML='<div class="loader"><div class="spin"></div><div class="lt">换个角度重新生成…</div></div>';
+  if(view)view.innerHTML='<div class="ai-loading"><div class="spin"></div><div class="lt">换个角度重新生成…</div></div>';
   requestAnimationFrame(()=>{
-    setTimeout(()=>renderTopicResults(),300);
+    setTimeout(()=>renderTopicResults(),hasApiKey()?0:300);
   });
 }
 
@@ -2647,6 +3138,257 @@ function adaptPlatform(platform){
 }
 
 function renderScript(tp){
+  const c=document.getElementById('script-container');
+  if(!tp){
+    c.innerHTML=`<div class="empty"><div class="ic">📝</div><div class="t">还没有脚本</div><div class="d">先去「选题」模块选一个选题</div>
+      <div style="margin-top:20px"><button class="btn btn-primary" style="max-width:200px;margin:0 auto" onclick="goPage('topic')">去生成选题</button></div></div>`;
+    return;
+  }
+  if(hasApiKey()){
+    renderScriptAI(tp);
+  }else{
+    renderScriptFallback(tp);
+  }
+}
+
+async function renderScriptAI(tp){
+  const c=document.getElementById('script-container');
+  if(!c)return;
+  showAILoading('script-container','AI 正在生成完整分镜脚本…');
+
+  const d=window._curStep1Data||step1Data||{};
+  const sysPrompt='你是短视频脚本创作专家，精通薛辉方法论（八大元素×四大脚本模型）。你擅长创作有情绪起伏、有传播力的分镜脚本。';
+  const userPrompt=`请根据以下信息创作完整的短视频脚本：
+
+选题：${tp.t}
+脚本模型：${tp.s}
+爆款元素：${(tp.e||[]).join(' + ')}
+行业：${d.industry||'未指定'}
+产品/服务：${d.product||'未指定'}
+目标客户：${d.audience||'未指定'}
+核心优势：${d.advantage||'未指定'}
+
+请按以下结构输出（每部分都要具体、可直接拍摄，不要泛泛而谈）：
+
+【钩子方案】
+给出3个不同的开场方案（每个2-3秒内说完），标注使用的技巧（悬念/反差/恐惧/身份锁定等）
+
+【分镜脚本】
+按"${tp.s}"脚本模型生成4个分镜：
+
+分镜1（0-3秒·钩子）：
+- 画面：具体拍摄画面
+- 口播：直接可用的口播文案（30字以内）
+- 情绪：当前情绪标注
+
+分镜2（3-15秒·发展）：
+- 画面：具体拍摄画面
+- 口播：直接可用的口播文案
+- 情绪：当前情绪标注
+
+分镜3（15-25秒·高潮）：
+- 画面：具体拍摄画面
+- 口播：直接可用的口播文案
+- 情绪：当前情绪标注
+
+分镜4（25-35秒·结尾）：
+- 画面：具体拍摄画面
+- 口播：直接可用的口播文案（含引导互动）
+- 情绪：当前情绪标注
+
+【完整逐字稿】
+把4个分镜的口播连起来，形成一份完整的、可以直接对着镜头念的逐字稿（不需要标注画面，只要口播文字）。
+
+【发布配套】
+- 发布文案（标题+简短描述，适合抖音/小红书发布）
+- 推荐话题标签（5-8个）
+- 置顶评论话术（1-2条，引导互动）`;
+
+  const result=await callAI(userPrompt,sysPrompt,{maxTokens:3000});
+  if(!result){
+    toast('AI 生成失败，使用模板降级');
+    renderScriptFallback(tp);
+    return;
+  }
+
+  // Store the AI script for rewriting
+  window._aiScript=result;
+  window._aiScriptTopic=tp;
+
+  const safe=result.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  let h='';
+  h+=`<button class="back-btn" onclick="goPage('topic')">‹ 返回选题</button>`;
+  h+=`<div class="s-header"><div class="s-title">脚本方案</div><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;background:linear-gradient(135deg,#0A84FF,#5856D6);color:#fff">AI 生成</span></div>`;
+  h+=`<div class="sc-section">
+    <div class="sc-head"><div class="sc-title">选题信息</div></div>
+    <div class="info-row">
+      <div class="ir-item"><div class="ir-label">选题</div><div class="ir-value" style="max-width:280px">${tp.t}</div></div>
+    </div>
+    <div class="info-row" style="margin-top:8px">
+      <div class="ir-item"><div class="ir-label">脚本模型</div><div class="ir-value">${tp.s}</div></div>
+      <div class="ir-item"><div class="ir-label">爆款元素</div><div class="ir-value">${(tp.e||[]).join(' + ')}</div></div>
+      <div class="ir-item"><div class="ir-label">预计时长</div><div class="ir-value">30-40秒</div></div>
+    </div>
+  </div>`;
+
+  h+=`<div class="sc-section" style="position:relative">
+    <span style="position:absolute;top:8px;right:8px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;background:linear-gradient(135deg,#0A84FF,#5856D6);color:#fff">AI</span>
+    <div class="sc-head"><div class="sc-title">完整脚本</div></div>
+    <div style="font-size:13px;color:var(--ink);line-height:1.8">${safe}</div>
+  </div>`;
+
+  // Add rewrite tools
+  h+=renderRewriteToolsAI(tp);
+
+  c.innerHTML=h;
+}
+
+function renderRewriteToolsAI(tp){
+  let h='';
+  h+=`<div class="sc-section">
+    <div class="sc-head"><div class="sc-title">改写工具</div></div>
+    <div style="font-size:12px;color:var(--ink-3);margin-bottom:8px">AI 语义级改写，保持核心信息不变</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+      <button class="btn btn-ghost" style="font-size:12px;padding:8px 14px" onclick="rewriteScriptAI('更激动','提升情绪强度，让文案更有感染力')">更激动</button>
+      <button class="btn btn-ghost" style="font-size:12px;padding:8px 14px" onclick="rewriteScriptAI('更冷静','降低情绪强度，用冷静客观的语气')">更冷静</button>
+      <button class="btn btn-ghost" style="font-size:12px;padding:8px 14px" onclick="rewriteScriptAI('拆句','把长句拆成短句，增强节奏感')">拆句</button>
+      <button class="btn btn-ghost" style="font-size:12px;padding:8px 14px" onclick="rewriteScriptAI('换视角','改变叙述视角（如从第一人称改第三人称）')">换视角</button>
+      <button class="btn btn-ghost" style="font-size:12px;padding:8px 14px" onclick="rewriteScriptAI('更口语化','用更生活化的口语表达')">更口语化</button>
+      <button class="btn btn-ghost" style="font-size:12px;padding:8px 14px" onclick="rewriteScriptAI('更专业','增强专业度和权威感')">更专业</button>
+      <button class="btn btn-ghost" style="font-size:12px;padding:8px 14px" onclick="rewriteScriptAI('更犀利好','增强犀利感和观点力度')">犀利</button>
+      <button class="btn btn-ghost" style="font-size:12px;padding:8px 14px" onclick="rewriteScriptAI('更悬念','增加悬念和好奇心')">悬念</button>
+    </div>
+    <div style="margin-top:8px">
+      <input type="text" id="customRewriteInput" placeholder="自定义改写指令，如：增加对比手法…" style="width:100%;padding:10px 12px;font-size:13px;background:var(--input-bg);border:1px solid var(--glass-border);border-radius:8px;color:var(--ink);outline:none" />
+      <button class="btn btn-primary" style="width:100%;margin-top:8px;font-size:13px;padding:10px" onclick="rewriteScriptAICustom()">AI 自定义改写</button>
+    </div>
+  </div>`;
+
+  // Style variants
+  h+=`<div class="sc-section">
+    <div class="sc-head"><div class="sc-title">风格变体</div></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${['白描','对话','悬念','数据','快节奏'].map((s,i)=>`<button class="btn btn-ghost" style="font-size:12px;padding:8px 14px" onclick="generateStyleVersionAI('${s}')">${s}</button>`).join('')}
+    </div>
+  </div>`;
+
+  // Platform adapt
+  h+=`<div class="sc-section">
+    <div class="sc-head"><div class="sc-title">平台适配</div></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-ghost" style="font-size:12px;padding:8px 14px" onclick="adaptPlatformAI('抖音')">适配抖音</button>
+      <button class="btn btn-ghost" style="font-size:12px;padding:8px 14px" onclick="adaptPlatformAI('小红书')">适配小红书</button>
+      <button class="btn btn-ghost" style="font-size:12px;padding:8px 14px" onclick="adaptPlatformAI('视频号')">适配视频号</button>
+    </div>
+  </div>`;
+
+  // Copy full script
+  h+=`<div class="sc-section">
+    <button class="btn btn-primary" style="width:100%;font-size:13px;padding:12px" onclick="copyFullScriptAI()">📋 一键复制完整脚本</button>
+  </div>`;
+
+  return h;
+}
+
+async function rewriteScriptAI(direction,desc){
+  if(!window._aiScript){toast('请先生成脚本');return;}
+  showAILoading('script-container','AI 正在' + direction + '改写…');
+  var orig=window._aiScript;
+  var tp=window._aiScriptTopic||{};
+  var sysPrompt='你是短视频文案改写专家。保持核心信息不变，按指定方向改写脚本。';
+  var userPrompt='原文：\n'+orig+'\n\n改写方向：'+direction+'\n要求：'+desc+'\n\n请按"'+direction+'"方向改写上面的脚本，保持口播风格，保持分镜结构，只改变表达方式和语气。';
+  var result=await callAI(userPrompt,sysPrompt,{maxTokens:3000});
+  if(!result){toast('改写失败');renderScriptAI(tp);return;}
+  window._aiScript=result;
+  var safe=result.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  var c=document.getElementById('script-container');
+  var h='';
+  h+='<button class="back-btn" onclick="goPage(\'topic\')">‹ 返回选题</button>';
+  h+='<div class="s-header"><div class="s-title">脚本方案</div><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;background:linear-gradient(135deg,#0A84FF,#5856D6);color:#fff">AI '+direction+'</span></div>';
+  h+='<div class="sc-section" style="position:relative"><span style="position:absolute;top:8px;right:8px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;background:linear-gradient(135deg,#0A84FF,#5856D6);color:#fff">AI 改写</span><div class="sc-head"><div class="sc-title">完整脚本（'+direction+'）</div></div><div style="font-size:13px;color:var(--ink);line-height:1.8">'+safe+'</div></div>';
+  h+=renderRewriteToolsAI(tp);
+  c.innerHTML=h;
+  toast('AI 改写完成（'+direction+'）');
+}
+
+async function rewriteScriptAICustom(){
+  if(!window._aiScript){toast('请先生成脚本');return;}
+  var inst=document.getElementById('customRewriteInput');
+  if(!inst||!inst.value.trim()){toast('请输入改写指令');return;}
+  showAILoading('script-container','AI 正在按你的要求改写…');
+  var orig=window._aiScript;
+  var tp=window._aiScriptTopic||{};
+  var sysPrompt='你是短视频文案改写专家。按用户指定要求改写脚本。';
+  var userPrompt='原文：\n'+orig+'\n\n改写要求：'+inst.value+'\n\n请按要求改写上面的脚本，保持口播风格和分镜结构。';
+  var result=await callAI(userPrompt,sysPrompt,{maxTokens:3000});
+  if(!result){toast('改写失败');renderScriptAI(tp);return;}
+  window._aiScript=result;
+  var safe=result.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  var c=document.getElementById('script-container');
+  var h='';
+  h+='<button class="back-btn" onclick="goPage(\'topic\')">‹ 返回选题</button>';
+  h+='<div class="s-header"><div class="s-title">脚本方案</div><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;background:linear-gradient(135deg,#0A84FF,#5856D6);color:#fff">AI 自定义</span></div>';
+  h+='<div class="sc-section" style="position:relative"><span style="position:absolute;top:8px;right:8px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;background:linear-gradient(135deg,#0A84FF,#5856D6);color:#fff">AI 改写</span><div class="sc-head"><div class="sc-title">完整脚本（自定义改写）</div></div><div style="font-size:13px;color:var(--ink);line-height:1.8">'+safe+'</div></div>';
+  h+=renderRewriteToolsAI(tp);
+  c.innerHTML=h;
+  toast('AI 自定义改写完成');
+}
+
+async function generateStyleVersionAI(style){
+  if(!window._aiScript){toast('请先生成脚本');return;}
+  showAILoading('script-container','AI 正在转换为'+style+'风格…');
+  var orig=window._aiScript;
+  var tp=window._aiScriptTopic||{};
+  var sysPrompt='你是短视频风格转换专家。把脚本转换为指定风格，保持核心信息不变。';
+  var userPrompt='完整脚本：\n'+orig+'\n\n目标风格：'+style+'\n\n请用"'+style+'风格重写整个脚本，保持核心信息和分镜结构，改变表达方式和语气。';
+  var result=await callAI(userPrompt,sysPrompt,{maxTokens:3000});
+  if(!result){toast('转换失败');renderScriptAI(tp);return;}
+  window._aiScript=result;
+  var safe=result.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  var c=document.getElementById('script-container');
+  var h='';
+  h+='<button class="back-btn" onclick="goPage(\'topic\')">‹ 返回选题</button>';
+  h+='<div class="s-header"><div class="s-title">脚本方案</div><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;background:linear-gradient(135deg,#0A84FF,#5856D6);color:#fff">'+style+'</span></div>';
+  h+='<div class="sc-section" style="position:relative"><span style="position:absolute;top:8px;right:8px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;background:linear-gradient(135deg,#0A84FF,#5856D6);color:#fff">AI '+style+'</span><div class="sc-head"><div class="sc-title">完整脚本（'+style+'风格）</div></div><div style="font-size:13px;color:var(--ink);line-height:1.8">'+safe+'</div></div>';
+  h+=renderRewriteToolsAI(tp);
+  c.innerHTML=h;
+  toast('AI 风格转换完成（'+style+'）');
+}
+
+async function adaptPlatformAI(platform){
+  if(!window._aiScript){toast('请先生成脚本');return;}
+  showAILoading('script-container','AI 正在适配'+platform+'…');
+  var orig=window._aiScript;
+  var tp=window._aiScriptTopic||{};
+  var sysPrompt='你是短视频平台适配专家。根据平台特性调整脚本。';
+  var userPrompt='完整脚本：\n'+orig+'\n\n目标平台：'+platform+'\n\n请根据'+platform+'平台的内容特性调整脚本：\n- 抖音：节奏快，前3秒必须抓住注意力，口语化\n- 小红书：更注重种草感，标题要吸引人，结尾加引导收藏\n- 视频号：偏中年群体，语速适中，内容更实诚\n\n保持核心信息不变，调整表达方式。';
+  var result=await callAI(userPrompt,sysPrompt,{maxTokens:3000});
+  if(!result){toast('适配失败');renderScriptAI(tp);return;}
+  window._aiScript=result;
+  var safe=result.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  var c=document.getElementById('script-container');
+  var h='';
+  h+='<button class="back-btn" onclick="goPage(\'topic\')">‹ 返回选题</button>';
+  h+='<div class="s-header"><div class="s-title">脚本方案</div><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;background:linear-gradient(135deg,#0A84FF,#5856D6);color:#fff">'+platform+'</span></div>';
+  h+='<div class="sc-section" style="position:relative"><span style="position:absolute;top:8px;right:8px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;background:linear-gradient(135deg,#0A84FF,#5856D6);color:#fff">AI '+platform+'</span><div class="sc-head"><div class="sc-title">完整脚本（'+platform+'适配）</div></div><div style="font-size:13px;color:var(--ink);line-height:1.8">'+safe+'</div></div>';
+  h+=renderRewriteToolsAI(tp);
+  c.innerHTML=h;
+  toast('AI 平台适配完成（'+platform+'）');
+}
+
+function copyFullScriptAI(){
+  if(!window._aiScript){toast('没有脚本内容');return;}
+  var text=window._aiScript;
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(text).then(()=>toast('已复制完整脚本到剪贴板')).catch(()=>{
+      var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);toast('已复制');
+    });
+  }else{
+    var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);toast('已复制');
+  }
+}
+
+function renderScriptFallback(tp){
   const c=document.getElementById('script-container');
   if(!tp){
     c.innerHTML=`<div class="empty"><div class="ic">📝</div><div class="t">还没有脚本</div><div class="d">先去「选题」模块选一个选题</div>
@@ -3913,6 +4655,71 @@ function checkCompliance(text,platform){
 }
 
 function runCompliance(){
+  if(hasApiKey()){
+    runComplianceAI();
+  }else{
+    runComplianceFallback();
+  }
+}
+
+async function runComplianceAI(){
+  const result=document.getElementById('complianceResult');
+  if(!result)return;
+  var text=window._aiScript||'';
+  if(!text){
+    var textareas=document.querySelectorAll('.seg-textarea');
+    textareas.forEach(function(ta){text+=ta.value+'\n';});
+  }
+  if(!text.trim()){toast('没有可检测的内容');return;}
+  var platform=document.getElementById('platformSelect')?document.getElementById('platformSelect').value:'抖音';
+  result.innerHTML='<div class="ai-loading"><div class="spin"></div><div class="lt">AI 正在检测合规性…</div></div>';
+
+  var sysPrompt='你是短视频合规审核专家。判断内容是否有违规风险，区分商业宣传和正常描述。';
+  var userPrompt='脚本内容：\n'+text+'\n\n平台：'+platform+'\n\n请检查以下合规风险（注意：正常描述"第一次""首个"等词语在非商业宣传场景不算违规）：\n1. 绝对化用语（"第一""最好""唯一"等是否为商业宣传）\n2. 虚假承诺\n3. 价格欺诈\n4. 医疗/健康违规声明\n5. 其他平台违规风险\n\n返回 JSON：{"score":数字0-100,"issues":[{"word":"触发词","level":"danger/warning/info","reason":"原因","suggestion":"修改建议","isViolation":true/false}]}';
+
+  var aiResult=await callAI(userPrompt,sysPrompt,{json:true,maxTokens:2000});
+  if(!aiResult){
+    runComplianceFallback();
+    return;
+  }
+  var parsed;
+  try{
+    var clean=aiResult.trim();
+    if(clean.startsWith('```'))clean=clean.replace(/```json?/g,'').replace(/```/g,'').trim();
+    parsed=JSON.parse(clean);
+  }catch(e){
+    runComplianceFallback();
+    return;
+  }
+
+  var score=parsed.score||85;
+  var issues=parsed.issues||[];
+  var h='';
+  h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">';
+  h+='<div style="font-size:24px;font-weight:800;color:'+(score>=80?'#30D158':score>=60?'#FF9F0A':'#FF453A')+'">'+score+'</div>';
+  h+='<div style="font-size:13px;color:var(--ink-3)">合规分 <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;background:linear-gradient(135deg,#0A84FF,#5856D6);color:#fff">AI</span></div>';
+  h+='</div>';
+  if(issues.length===0){
+    h+='<div style="font-size:13px;color:var(--green)">✅ AI 检测通过，未发现合规风险</div>';
+  }else{
+    issues.forEach(function(it){
+      var color=it.level==='danger'?'#FF453A':it.level==='warning'?'#FF9F0A':'#86868B';
+      h+='<div style="background:var(--glass-bg-2);border-radius:8px;padding:10px 12px;margin-bottom:8px;border-left:3px solid '+color+'">';
+      h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">';
+      h+='<span style="font-size:11px;font-weight:700;color:'+color+'">'+(it.level==='danger'?'高危':it.level==='warning'?'中危':'提示')+'</span>';
+      h+='<span style="font-size:12px;color:var(--ink)">'+(it.word||'')+'</span>';
+      if(!it.isViolation)h+='<span style="font-size:10px;color:var(--green)">非违规</span>';
+      h+='</div>';
+      h+='<div style="font-size:12px;color:var(--ink-2)">'+(it.reason||'')+'</div>';
+      if(it.suggestion)h+='<div style="font-size:12px;color:var(--accent);margin-top:4px">建议：'+it.suggestion+'</div>';
+      h+='</div>';
+    });
+  }
+  result.innerHTML=h;
+  toast('AI 合规检测完成');
+}
+
+function runComplianceFallback(){
   const textareas=document.querySelectorAll('.seg-textarea');
   const platform=document.getElementById('platformSelect').value;
   const result=document.getElementById('complianceResult');
